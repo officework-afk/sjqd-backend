@@ -1,0 +1,153 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             Int       @id @default(autoincrement())
+  name           String    @default("Admin")
+  email          String?   @unique
+  phone          String?   @unique
+  password       String
+  role           String    @default("ADMIN")
+  otpCode        String?
+  otpExpiresAt   DateTime?
+  otpRequestedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+}
+
+model Purchase {
+  id            Int      @id @default(autoincrement())
+  invoiceNo     String
+  supplierName  String
+  itemName      String
+  quantity      Float
+  rate          Float
+  gstNo         String?
+  taxableAmount Float
+  gstRate       Float
+  cgst          Float
+  sgst          Float
+  igst          Float
+  totalAmount   Float
+  createdAt     DateTime @default(now())
+}
+
+model Sale {
+  id            Int      @id @default(autoincrement())
+  invoiceNo     String
+  partyName     String
+  itemName      String
+  quantity      Float
+  rate          Float
+  gstNo         String?
+  taxableAmount Float
+  gstRate       Float
+  cgst          Float
+  sgst          Float
+  igst          Float
+  totalAmount   Float
+  costPrice     Float    @default(0)
+  profitAmount  Float    @default(0)
+  createdAt     DateTime @default(now())
+}
+
+model PurchaseReturn {
+  id                Int      @id @default(autoincrement())
+  returnNo          String
+  originalInvoiceNo String
+  supplierName      String
+  itemName          String
+  quantity          Float
+  rate              Float
+  gstNo             String?
+  taxableAmount     Float
+  gstRate           Float
+  cgst              Float
+  sgst              Float
+  igst              Float
+  totalAmount       Float
+  createdAt         DateTime @default(now())
+}
+
+model SalesReturn {
+  id                Int      @id @default(autoincrement())
+  returnNo          String
+  originalInvoiceNo String
+  partyName         String
+  itemName          String
+  quantity          Float
+  rate              Float
+  gstNo             String?
+  taxableAmount     Float
+  gstRate           Float
+  cgst              Float
+  sgst              Float
+  igst              Float
+  totalAmount       Float
+  createdAt         DateTime @default(now())
+}
+
+model Item {
+  id                Int      @id @default(autoincrement())
+  barcode           String?
+  itemName          String   @unique
+  gstRate           Float    @default(0)
+  salesRate         Float    @default(0)
+  purchaseRate      Float    @default(0)
+  currentStock      Float    @default(0)
+  lastPurchaseRate  Float    @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+  partyName String
+  gstNo     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Company {
+  id                  Int      @id @default(autoincrement())
+  companyName         String   @default("SAMUEL PRAKASH")
+  proprietorName      String?
+  gstNumber           String?
+  businessType        String?
+  phone               String?
+  email               String?
+  address             String?
+  logo                String?
+  stockMethod         String   @default("WEIGHTED_AVG")
+  financialYear       String?  @default("2026-27")
+
+  salesPrefix         String   @default("SAL")
+  purchasePrefix      String   @default("PUR")
+  salesReturnPrefix   String   @default("SR")
+  purchaseReturnPrefix String  @default("PR")
+
+  bankName            String?
+  accountNumber       String?
+  ifscCode            String?
+  branchName          String?
+  terms               String?  @default("Goods once sold will not be taken back. Subject to local jurisdiction.")
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model AppSetting {
+  id            Int      @id @default(autoincrement())
+  stockMethod   String   @default("WEIGHTED_AVG")
+  allowNegative Boolean  @default(false)
+  lowStockLimit Float    @default(10)
+  gstType       String   @default("REGULAR")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

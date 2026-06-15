@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import Tesseract from "tesseract.js";
 import fs from "fs";
 
-const pdfParse = require("pdf-parse");
+// const pdfParse = require("pdf-parse");
 
 function n(value: any) {
   return Number(String(value || "0").replace(/,/g, "")) || 0;
@@ -104,14 +104,12 @@ export const extractInvoice = async (req: Request, res: Response) => {
 
     let text = "";
 
-    if (file.mimetype === "application/pdf") {
-      const buffer = fs.readFileSync(file.path);
-      const pdf = await pdfParse(buffer);
-      text = pdf.text || "";
-    } else {
-      const result = await Tesseract.recognize(file.path, "eng");
-      text = result.data.text || "";
-    }
+if (file.mimetype === "application/pdf") {
+  text = "PDF extraction temporarily disabled";
+} else {
+  const result = await Tesseract.recognize(file.path, "eng");
+  text = result.data.text || "";
+}
 
     fs.unlinkSync(file.path);
 

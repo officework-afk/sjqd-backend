@@ -1,4 +1,6 @@
 import express from "express";
+import { authMiddleware } from "../middleware/auth.middleware";
+
 import {
   createPurchaseReturn,
   getPurchaseReturns,
@@ -8,9 +10,9 @@ import {
 
 const router = express.Router();
 
-router.post("/", createPurchaseReturn);
-router.get("/", getPurchaseReturns);
-router.put("/:id", updatePurchaseReturn);
-router.delete("/:id", deletePurchaseReturn);
+router.post("/", authMiddleware, createPurchaseReturn);
+router.get("/", authMiddleware, getPurchaseReturns);
+router.put("/:id", authMiddleware, updatePurchaseReturn);
+router.delete("/:id", authMiddleware, deletePurchaseReturn);
 
 export default router;

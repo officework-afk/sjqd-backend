@@ -1,4 +1,5 @@
 import express from "express";
+import { authMiddleware } from "../middleware/auth.middleware";
 
 import {
   getSales,
@@ -9,9 +10,9 @@ import {
 
 const router = express.Router();
 
-router.get("/", getSales);
-router.post("/", createSale);
-router.put("/:id", updateSale);
-router.delete("/:id", deleteSale);
+router.get("/", authMiddleware, getSales);
+router.post("/", authMiddleware, createSale);
+router.put("/:id", authMiddleware, updateSale);
+router.delete("/:id", authMiddleware, deleteSale);
 
 export default router;

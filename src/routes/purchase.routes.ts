@@ -1,6 +1,6 @@
 import express from "express";
 import multer from "multer";
-import { authMiddleware } from "../middleware/auth.middleware";
+import authMiddleware from "../middleware/auth.middleware";
 
 import {
   createPurchase,

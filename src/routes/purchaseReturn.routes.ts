@@ -1,12 +1,12 @@
 import express from "express";
-import { authMiddleware } from "../middleware/auth.middleware";
-
 import {
   createPurchaseReturn,
   getPurchaseReturns,
   updatePurchaseReturn,
   deletePurchaseReturn,
 } from "../controllers/purchaseReturn.controller";
+
+import authMiddleware from "../middleware/auth.middleware";
 
 const router = express.Router();
 

@@ -93,6 +93,66 @@ model SalesReturn {
   createdAt         DateTime @default(now())
 }
 
+model SalesAdjustment {
+  id                Int      @id @default(autoincrement())
+  noteNo            String   @unique
+  noteType          String
+  originalInvoiceNo String
+  partyName         String
+  itemName          String
+  quantity          Float
+  rate              Float
+  gstNo             String?
+  taxableAmount     Float
+  gstRate           Float
+  cgst              Float
+  sgst              Float
+  igst              Float
+  totalAmount       Float
+  originalTotalAmount Float  @default(0)
+  adjustedTotalAmount Float  @default(0)
+  adjustmentAmount  Float
+  items             Json?
+  originalItems     Json?
+  dueDate           String?
+  phone             String?
+  state             String?
+  pincode           String?
+  address           String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model PurchaseAdjustment {
+  id                  Int      @id @default(autoincrement())
+  noteNo              String   @unique
+  noteType            String
+  originalInvoiceNo   String
+  supplierName        String
+  itemName            String
+  quantity            Float
+  rate                Float
+  gstNo               String?
+  taxableAmount       Float
+  gstRate             Float
+  cgst                Float
+  sgst                Float
+  igst                Float
+  totalAmount         Float
+  originalTotalAmount Float    @default(0)
+  adjustedTotalAmount Float    @default(0)
+  adjustmentAmount    Float
+  items               Json?
+  originalItems       Json?
+  dueDate             String?
+  phone               String?
+  state               String?
+  pincode             String?
+  address             String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
 model Item {
   id                Int      @id @default(autoincrement())
   barcode           String?
@@ -148,6 +208,8 @@ model AppSetting {
   allowNegative Boolean  @default(false)
   lowStockLimit Float    @default(10)
   gstType       String   @default("REGULAR")
+  invoiceEditEnabled Boolean @default(false)
+  invoiceEditPasswordHash String?
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }

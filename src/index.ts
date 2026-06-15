@@ -8,7 +8,9 @@ import settingsRoutes from "./routes/settings.routes";
 import backupRoutes from "./routes/backup.routes";
 
 import salesRoutes from "./routes/sales.routes";
+import salesAdjustmentRoutes from "./routes/salesAdjustment.routes";
 import purchaseRoutes from "./routes/purchase.routes";
+import purchaseAdjustmentRoutes from "./routes/purchaseAdjustment.routes";
 import salesReturnRoutes from "./routes/salesReturn.routes";
 import purchaseReturnRoutes from "./routes/purchaseReturn.routes";
 import itemRoutes from "./routes/item.routes";
@@ -52,7 +54,9 @@ app.use("/settings", settingsRoutes);
 app.use("/backup", backupRoutes);
 
 app.use("/sales", salesRoutes);
+app.use("/sales-adjustment", salesAdjustmentRoutes);
 app.use("/purchase", purchaseRoutes);
+app.use("/purchase-adjustment", purchaseAdjustmentRoutes);
 app.use("/sales-return", salesReturnRoutes);
 app.use("/purchase-return", purchaseReturnRoutes);
 app.use("/items", itemRoutes);

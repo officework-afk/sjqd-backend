@@ -5,7 +5,7 @@ import { extractInvoice } from "../controllers/ai.controller";
 const router = express.Router();
 
 const upload = multer({
-  dest: "uploads/",
+  storage: multer.memoryStorage(),
   limits: {
     fileSize: 15 * 1024 * 1024,
   },

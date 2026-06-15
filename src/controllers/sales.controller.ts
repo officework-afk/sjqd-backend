@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 const calcTotals = (quantity: number, rate: number, gstRate: number) => {
   const taxableAmount = quantity * rate;
@@ -12,9 +13,16 @@ const calcTotals = (quantity: number, rate: number, gstRate: number) => {
   return { taxableAmount, cgst, sgst, igst, totalAmount };
 };
 
-export const getSales = async (_req: Request, res: Response) => {
+const getUserId = (req: AuthRequest) => {
+  return Number(req.user?.userId || req.user?.id);
+};
+
+export const getSales = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const sales = await prisma.sale.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -24,8 +32,10 @@ export const getSales = async (_req: Request, res: Response) => {
   }
 };
 
-export const createSale = async (req: Request, res: Response) => {
+export const createSale = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const { invoiceNo, partyName, gstNo, itemName, quantity, rate, gstRate } =
       req.body;
 
@@ -49,11 +59,12 @@ export const createSale = async (req: Request, res: Response) => {
         sgst: totals.sgst,
         igst: totals.igst,
         totalAmount: totals.totalAmount,
+        userId,
       },
     });
 
-    const item = await prisma.item.findUnique({
-      where: { itemName },
+    const item = await prisma.item.findFirst({
+      where: { userId, itemName },
     });
 
     if (item) {
@@ -71,15 +82,16 @@ export const createSale = async (req: Request, res: Response) => {
   }
 };
 
-export const updateSale = async (req: Request, res: Response) => {
+export const updateSale = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
 
     const { invoiceNo, partyName, gstNo, itemName, quantity, rate, gstRate } =
       req.body;
 
-    const oldSale = await prisma.sale.findUnique({
-      where: { id },
+    const oldSale = await prisma.sale.findFirst({
+      where: { id, userId },
     });
 
     if (!oldSale) {
@@ -112,8 +124,8 @@ export const updateSale = async (req: Request, res: Response) => {
       },
     });
 
-    const item = await prisma.item.findUnique({
-      where: { itemName },
+    const item = await prisma.item.findFirst({
+      where: { userId, itemName },
     });
 
     if (item) {
@@ -131,27 +143,29 @@ export const updateSale = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteSale = async (req: Request, res: Response) => {
+export const deleteSale = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
 
-    const sale = await prisma.sale.findUnique({
-      where: { id },
+    const sale = await prisma.sale.findFirst({
+      where: { id, userId },
     });
 
     if (!sale) {
       return res.status(404).json({ message: "Sale not found" });
     }
 
-    const item = await prisma.item.findUnique({
-      where: { itemName: sale.itemName },
+    const item = await prisma.item.findFirst({
+      where: { userId, itemName: sale.itemName },
     });
 
     if (item) {
       await prisma.item.update({
         where: { id: item.id },
         data: {
-          currentStock: Number(item.currentStock || 0) + Number(sale.quantity || 0),
+          currentStock:
+            Number(item.currentStock || 0) + Number(sale.quantity || 0),
         },
       });
     }

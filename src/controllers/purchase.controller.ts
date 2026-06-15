@@ -1,10 +1,18 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import prisma from "../config/db";
 import { generateInvoiceNo } from "../utils/invoice";
+import { AuthRequest } from "../middleware/auth.middleware";
 
-export const getPurchases = async (_req: Request, res: Response) => {
+const getUserId = (req: AuthRequest) => {
+  return Number(req.user?.userId || req.user?.id);
+};
+
+export const getPurchases = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const purchases = await prisma.purchase.findMany({
+      where: { userId },
       orderBy: { createdAt: "desc" },
     });
 
@@ -14,9 +22,13 @@ export const getPurchases = async (_req: Request, res: Response) => {
   }
 };
 
-export const getPurchaseTotal = async (_req: Request, res: Response) => {
+export const getPurchaseTotal = async (req: AuthRequest, res: Response) => {
   try {
-    const purchases = await prisma.purchase.findMany();
+    const userId = getUserId(req);
+
+    const purchases = await prisma.purchase.findMany({
+      where: { userId },
+    });
 
     const total = purchases.reduce(
       (sum, item) => sum + Number(item.totalAmount || 0),
@@ -29,8 +41,10 @@ export const getPurchaseTotal = async (_req: Request, res: Response) => {
   }
 };
 
-export const createPurchase = async (req: Request, res: Response) => {
+export const createPurchase = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const {
       invoiceNo,
       supplierName,
@@ -59,9 +73,14 @@ export const createPurchase = async (req: Request, res: Response) => {
     const cgstAmount = Number(cgst || 0);
     const sgstAmount = Number(sgst || 0);
     const igstAmount = Number(igst || 0);
-    const total = Number(totalAmount || taxable + cgstAmount + sgstAmount + igstAmount);
+    const total = Number(
+      totalAmount || taxable + cgstAmount + sgstAmount + igstAmount
+    );
 
-    const count = await prisma.purchase.count();
+    const count = await prisma.purchase.count({
+      where: { userId },
+    });
+
     const autoInvoiceNo = invoiceNo || generateInvoiceNo("PUR", count + 1);
 
     const purchase = await prisma.purchase.create({
@@ -78,19 +97,21 @@ export const createPurchase = async (req: Request, res: Response) => {
         sgst: sgstAmount,
         igst: igstAmount,
         totalAmount: total,
+        userId,
       },
     });
 
-    const existingItem = await prisma.item.findUnique({
-      where: { itemName },
+    const existingItem = await prisma.item.findFirst({
+      where: { userId, itemName },
     });
 
     if (existingItem) {
       await prisma.item.update({
-        where: { itemName },
+        where: { id: existingItem.id },
         data: {
           currentStock: Number(existingItem.currentStock || 0) + qty,
           lastPurchaseRate: itemRate,
+          purchaseRate: itemRate,
         },
       });
     } else {
@@ -99,6 +120,8 @@ export const createPurchase = async (req: Request, res: Response) => {
           itemName,
           currentStock: qty,
           lastPurchaseRate: itemRate,
+          purchaseRate: itemRate,
+          userId,
         },
       });
     }
@@ -113,12 +136,13 @@ export const createPurchase = async (req: Request, res: Response) => {
   }
 };
 
-export const updatePurchase = async (req: Request, res: Response) => {
+export const updatePurchase = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
 
-    const oldPurchase = await prisma.purchase.findUnique({
-      where: { id },
+    const oldPurchase = await prisma.purchase.findFirst({
+      where: { id, userId },
     });
 
     if (!oldPurchase) {
@@ -162,16 +186,17 @@ export const updatePurchase = async (req: Request, res: Response) => {
       },
     });
 
-    const existingItem = await prisma.item.findUnique({
-      where: { itemName },
+    const existingItem = await prisma.item.findFirst({
+      where: { userId, itemName },
     });
 
     if (existingItem) {
       await prisma.item.update({
-        where: { itemName },
+        where: { id: existingItem.id },
         data: {
           currentStock: Number(existingItem.currentStock || 0) + difference,
           lastPurchaseRate: Number(rate),
+          purchaseRate: Number(rate),
         },
       });
     }
@@ -186,27 +211,29 @@ export const updatePurchase = async (req: Request, res: Response) => {
   }
 };
 
-export const deletePurchase = async (req: Request, res: Response) => {
+export const deletePurchase = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
 
-    const purchase = await prisma.purchase.findUnique({
-      where: { id },
+    const purchase = await prisma.purchase.findFirst({
+      where: { id, userId },
     });
 
     if (!purchase) {
       return res.status(404).json({ message: "Purchase not found" });
     }
 
-    const item = await prisma.item.findUnique({
-      where: { itemName: purchase.itemName },
+    const item = await prisma.item.findFirst({
+      where: { userId, itemName: purchase.itemName },
     });
 
     if (item) {
       await prisma.item.update({
-        where: { itemName: purchase.itemName },
+        where: { id: item.id },
         data: {
-          currentStock: Number(item.currentStock || 0) - Number(purchase.quantity || 0),
+          currentStock:
+            Number(item.currentStock || 0) - Number(purchase.quantity || 0),
         },
       });
     }
@@ -222,10 +249,12 @@ export const deletePurchase = async (req: Request, res: Response) => {
   }
 };
 
-export const importPurchases = async (_req: Request, res: Response) => {
+export const importPurchases = async (_req: AuthRequest, res: Response) => {
   res.status(400).json({ message: "Excel import will be handled in next phase" });
 };
 
-export const extractPurchaseBill = async (_req: Request, res: Response) => {
-  res.status(400).json({ message: "AI bill extraction will be handled separately" });
+export const extractPurchaseBill = async (_req: AuthRequest, res: Response) => {
+  res.status(400).json({
+    message: "AI bill extraction will be handled separately",
+  });
 };

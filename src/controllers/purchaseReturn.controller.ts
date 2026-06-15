@@ -1,5 +1,10 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
+
+function getUserId(req: AuthRequest) {
+  return Number(req.user?.userId || req.user?.id || 0);
+}
 
 function generateReturnNo(prefix: string, id: number) {
   const year = new Date().getFullYear();
@@ -20,11 +25,15 @@ function calculateGst(quantity: number, rate: number, gstRate: number) {
   };
 }
 
-export const getPurchaseReturns = async (_req: Request, res: Response) => {
+export const getPurchaseReturns = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const data = await prisma.purchaseReturn.findMany({
+      where: userId ? { userId } : {},
       orderBy: { id: "desc" },
     });
+
     res.json(data);
   } catch (error) {
     console.error("GET PURCHASE RETURN ERROR:", error);
@@ -32,8 +41,10 @@ export const getPurchaseReturns = async (_req: Request, res: Response) => {
   }
 };
 
-export const createPurchaseReturn = async (req: Request, res: Response) => {
+export const createPurchaseReturn = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const {
       returnNo,
       originalInvoiceNo,
@@ -46,19 +57,26 @@ export const createPurchaseReturn = async (req: Request, res: Response) => {
     } = req.body;
 
     if (!supplierName || !itemName || !quantity || !rate) {
-      return res.status(400).json({ message: "Supplier name, item, quantity and rate are required" });
+      return res.status(400).json({
+        message: "Supplier name, item, quantity and rate are required",
+      });
     }
 
     const qty = Number(quantity);
     const itemRate = Number(rate);
     const itemGstRate = Number(gstRate || 0);
 
-    const item = await prisma.item.findUnique({
-      where: { itemName },
+    const item = await prisma.item.findFirst({
+      where: {
+        itemName,
+        ...(userId ? { userId } : {}),
+      },
     });
 
     if (!item) {
-      return res.status(400).json({ message: `Item "${itemName}" not found in stock` });
+      return res.status(400).json({
+        message: `Item "${itemName}" not found in stock`,
+      });
     }
 
     if (Number(item.currentStock || 0) < qty) {
@@ -84,6 +102,7 @@ export const createPurchaseReturn = async (req: Request, res: Response) => {
         sgst: gst.sgst,
         igst: gst.igst,
         totalAmount: gst.totalAmount,
+        ...(userId ? { userId } : {}),
       },
     });
 
@@ -95,7 +114,7 @@ export const createPurchaseReturn = async (req: Request, res: Response) => {
     });
 
     await prisma.item.update({
-      where: { itemName },
+      where: { id: item.id },
       data: {
         currentStock: Number(item.currentStock || 0) - qty,
       },
@@ -111,12 +130,16 @@ export const createPurchaseReturn = async (req: Request, res: Response) => {
   }
 };
 
-export const updatePurchaseReturn = async (req: Request, res: Response) => {
+export const updatePurchaseReturn = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
 
-    const oldReturn = await prisma.purchaseReturn.findUnique({
-      where: { id },
+    const oldReturn = await prisma.purchaseReturn.findFirst({
+      where: {
+        id,
+        ...(userId ? { userId } : {}),
+      },
     });
 
     if (!oldReturn) {
@@ -138,25 +161,34 @@ export const updatePurchaseReturn = async (req: Request, res: Response) => {
     const itemRate = Number(rate);
     const itemGstRate = Number(gstRate || 0);
 
-    const oldItem = await prisma.item.findUnique({
-      where: { itemName: oldReturn.itemName },
+    const oldItem = await prisma.item.findFirst({
+      where: {
+        itemName: oldReturn.itemName,
+        ...(userId ? { userId } : {}),
+      },
     });
 
     if (oldItem) {
       await prisma.item.update({
-        where: { itemName: oldReturn.itemName },
+        where: { id: oldItem.id },
         data: {
-          currentStock: Number(oldItem.currentStock || 0) + Number(oldReturn.quantity || 0),
+          currentStock:
+            Number(oldItem.currentStock || 0) + Number(oldReturn.quantity || 0),
         },
       });
     }
 
-    const newItem = await prisma.item.findUnique({
-      where: { itemName },
+    const newItem = await prisma.item.findFirst({
+      where: {
+        itemName,
+        ...(userId ? { userId } : {}),
+      },
     });
 
     if (!newItem) {
-      return res.status(400).json({ message: `Item "${itemName}" not found in stock` });
+      return res.status(400).json({
+        message: `Item "${itemName}" not found in stock`,
+      });
     }
 
     if (Number(newItem.currentStock || 0) < qty) {
@@ -166,7 +198,7 @@ export const updatePurchaseReturn = async (req: Request, res: Response) => {
     }
 
     await prisma.item.update({
-      where: { itemName },
+      where: { id: newItem.id },
       data: {
         currentStock: Number(newItem.currentStock || 0) - qty,
       },
@@ -203,27 +235,35 @@ export const updatePurchaseReturn = async (req: Request, res: Response) => {
   }
 };
 
-export const deletePurchaseReturn = async (req: Request, res: Response) => {
+export const deletePurchaseReturn = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
 
-    const oldReturn = await prisma.purchaseReturn.findUnique({
-      where: { id },
+    const oldReturn = await prisma.purchaseReturn.findFirst({
+      where: {
+        id,
+        ...(userId ? { userId } : {}),
+      },
     });
 
     if (!oldReturn) {
       return res.status(404).json({ message: "Purchase return not found" });
     }
 
-    const item = await prisma.item.findUnique({
-      where: { itemName: oldReturn.itemName },
+    const item = await prisma.item.findFirst({
+      where: {
+        itemName: oldReturn.itemName,
+        ...(userId ? { userId } : {}),
+      },
     });
 
     if (item) {
       await prisma.item.update({
-        where: { itemName: oldReturn.itemName },
+        where: { id: item.id },
         data: {
-          currentStock: Number(item.currentStock || 0) + Number(oldReturn.quantity || 0),
+          currentStock:
+            Number(item.currentStock || 0) + Number(oldReturn.quantity || 0),
         },
       });
     } else {
@@ -232,6 +272,7 @@ export const deletePurchaseReturn = async (req: Request, res: Response) => {
           itemName: oldReturn.itemName,
           currentStock: Number(oldReturn.quantity || 0),
           lastPurchaseRate: Number(oldReturn.rate || 0),
+          ...(userId ? { userId } : {}),
         },
       });
     }

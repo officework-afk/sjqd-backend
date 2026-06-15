@@ -1,5 +1,10 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
+
+const getUserId = (req: AuthRequest) => {
+  return Number(req.user?.userId || req.user?.id);
+};
 
 const normalizeBarcode = (value: unknown) => {
   const barcode = String(value || "").trim();
@@ -10,9 +15,14 @@ const getCurrentStock = (body: Record<string, unknown>) => {
   return Number(body.currentStock ?? body.openingStock ?? 0);
 };
 
-const findExistingItemByName = async (itemName: string, excludeId?: number) => {
+const findExistingItemByName = async (
+  userId: number,
+  itemName: string,
+  excludeId?: number
+) => {
   return prisma.item.findFirst({
     where: {
+      userId,
       itemName: {
         equals: itemName,
         mode: "insensitive",
@@ -23,9 +33,12 @@ const findExistingItemByName = async (itemName: string, excludeId?: number) => {
   });
 };
 
-export const getItems = async (_req: Request, res: Response) => {
+export const getItems = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const items = await prisma.item.findMany({
+      where: { userId },
       orderBy: { itemName: "asc" },
     });
 
@@ -35,8 +48,10 @@ export const getItems = async (_req: Request, res: Response) => {
   }
 };
 
-export const createItem = async (req: Request, res: Response) => {
+export const createItem = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
     const barcode = normalizeBarcode(req.body.barcode);
     const itemName = String(req.body.itemName || "").trim();
     const gstRate = Number(req.body.gstRate || 0);
@@ -48,7 +63,8 @@ export const createItem = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Item name is required" });
     }
 
-    const duplicate = await findExistingItemByName(itemName);
+    const duplicate = await findExistingItemByName(userId, itemName);
+
     if (duplicate) {
       return res.status(409).json({
         message: `Item "${duplicate.itemName}" already exists`,
@@ -64,6 +80,7 @@ export const createItem = async (req: Request, res: Response) => {
         salesRate,
         purchaseRate,
         currentStock,
+        userId,
       },
     });
 
@@ -74,9 +91,19 @@ export const createItem = async (req: Request, res: Response) => {
   }
 };
 
-export const updateItem = async (req: Request, res: Response) => {
+export const updateItem = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
+
+    const existing = await prisma.item.findFirst({
+      where: { id, userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: "Item not found" });
+    }
+
     const barcode = normalizeBarcode(req.body.barcode);
     const itemName = String(req.body.itemName || "").trim();
     const gstRate = Number(req.body.gstRate || 0);
@@ -88,7 +115,8 @@ export const updateItem = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Item name is required" });
     }
 
-    const duplicate = await findExistingItemByName(itemName, id);
+    const duplicate = await findExistingItemByName(userId, itemName, id);
+
     if (duplicate) {
       return res.status(409).json({
         message: `Item "${duplicate.itemName}" already exists`,
@@ -115,9 +143,18 @@ export const updateItem = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteItem = async (req: Request, res: Response) => {
+export const deleteItem = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
     const id = Number(req.params.id);
+
+    const existing = await prisma.item.findFirst({
+      where: { id, userId },
+    });
+
+    if (!existing) {
+      return res.status(404).json({ message: "Item not found" });
+    }
 
     await prisma.item.delete({
       where: { id },

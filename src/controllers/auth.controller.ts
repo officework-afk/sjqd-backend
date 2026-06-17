@@ -150,7 +150,13 @@ export const register = async (req: Request, res: Response) => {
       },
     });
 
-    return res.json({ message: "User registered successfully", user });
+    const token = createAuthToken(user);
+
+    return res.json({
+      message: "User registered successfully",
+      token,
+      user: buildUserPayload(user),
+    });
   } catch (error) {
     console.error("REGISTER ERROR:", error);
     return res.status(500).json({ message: "Registration failed" });
@@ -171,13 +177,16 @@ export const login = async (req: Request, res: Response) => {
     const user = await findUserByIdentifier(loginIdentifier);
 
     if (!user) {
-      return res.status(401).json({ message: "Invalid email/mobile number or password" });
+      return res.status(404).json({
+        message:
+          "No account found for this email/mobile number in this software. Use the exact email/mobile saved during registration or register this account first.",
+      });
     }
 
     const valid = await bcrypt.compare(password, user.password);
 
     if (!valid) {
-      return res.status(401).json({ message: "Invalid email/mobile number or password" });
+      return res.status(401).json({ message: "Password is incorrect for this account" });
     }
 
     const token = createAuthToken(user);
@@ -313,6 +322,67 @@ export const verifyOtpLogin = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("VERIFY OTP LOGIN ERROR:", error);
     return res.status(500).json({ message: "OTP login failed" });
+  }
+};
+
+export const resetPasswordWithOtp = async (req: Request, res: Response) => {
+  try {
+    const { identifier, otp, newPassword } = req.body;
+    const loginIdentifier = String(identifier || "").trim();
+    const typedOtp = String(otp || "").trim();
+    const nextPassword = String(newPassword || "").trim();
+
+    if (!loginIdentifier || !typedOtp || !nextPassword) {
+      return res
+        .status(400)
+        .json({ message: "Email/mobile number, OTP and new password are required" });
+    }
+
+    if (nextPassword.length < 4) {
+      return res.status(400).json({ message: "New password must be at least 4 characters" });
+    }
+
+    const user = await findUserByIdentifier(loginIdentifier);
+
+    if (!user || !user.otpCode || !user.otpExpiresAt) {
+      return res
+        .status(401)
+        .json({ message: "OTP not found. Please request a new OTP." });
+    }
+
+    if (user.otpExpiresAt.getTime() < Date.now()) {
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          otpCode: null,
+          otpExpiresAt: null,
+        },
+      });
+
+      return res.status(401).json({ message: "OTP expired. Please request a new OTP." });
+    }
+
+    if (user.otpCode !== typedOtp) {
+      return res.status(401).json({ message: "Invalid OTP" });
+    }
+
+    const hashedPassword = await bcrypt.hash(nextPassword, 10);
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        otpCode: null,
+        otpExpiresAt: null,
+      },
+    });
+
+    return res.json({
+      message: "Password reset successful. Login with your new password.",
+    });
+  } catch (error) {
+    console.error("RESET PASSWORD WITH OTP ERROR:", error);
+    return res.status(500).json({ message: "Password reset failed" });
   }
 };
 

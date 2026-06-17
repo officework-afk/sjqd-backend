@@ -1,4 +1,5 @@
 import express from "express";
+import authMiddleware from "../middleware/auth.middleware";
 import {
   createPurchaseAdjustment,
   deletePurchaseAdjustment,
@@ -8,9 +9,9 @@ import {
 
 const router = express.Router();
 
-router.get("/", getPurchaseAdjustments);
-router.post("/", createPurchaseAdjustment);
-router.put("/:id", updatePurchaseAdjustment);
-router.delete("/:id", deletePurchaseAdjustment);
+router.get("/", authMiddleware, getPurchaseAdjustments);
+router.post("/", authMiddleware, createPurchaseAdjustment);
+router.put("/:id", authMiddleware, updatePurchaseAdjustment);
+router.delete("/:id", authMiddleware, deletePurchaseAdjustment);
 
 export default router;

@@ -1,6 +1,10 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import bcrypt from "bcryptjs";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
+
+const getUserId = (req: AuthRequest) =>
+  Number(req.user?.userId || req.user?.id || 0);
 
 const buildSettingsResponse = (settings: {
   id: number;
@@ -21,8 +25,10 @@ const buildSettingsResponse = (settings: {
   };
 };
 
-const ensureSettings = async () => {
-  const existing = await prisma.appSetting.findFirst();
+const ensureSettings = async (userId: number) => {
+  const existing = await prisma.appSetting.findFirst({
+    where: { userId },
+  });
 
   if (existing) {
     return existing;
@@ -35,13 +41,20 @@ const ensureSettings = async () => {
       lowStockLimit: 10,
       gstType: "REGULAR",
       invoiceEditEnabled: false,
+      userId,
     },
   });
 };
 
-export const getSettings = async (_req: Request, res: Response) => {
+export const getSettings = async (req: AuthRequest, res: Response) => {
   try {
-    const settings = await ensureSettings();
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const settings = await ensureSettings(userId);
 
     return res.json(buildSettingsResponse(settings));
   } catch (error) {
@@ -50,8 +63,14 @@ export const getSettings = async (_req: Request, res: Response) => {
   }
 };
 
-export const updateSettings = async (req: Request, res: Response) => {
+export const updateSettings = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const {
       stockMethod,
       allowNegative,
@@ -61,7 +80,7 @@ export const updateSettings = async (req: Request, res: Response) => {
       invoiceEditPassword,
     } = req.body;
 
-    const settings = await ensureSettings();
+    const settings = await ensureSettings(userId);
     const cleanPassword = String(invoiceEditPassword || "").trim();
     const nextInvoiceEditEnabled =
       typeof invoiceEditEnabled === "boolean"
@@ -108,10 +127,16 @@ export const updateSettings = async (req: Request, res: Response) => {
 };
 
 export const verifyInvoiceEditPassword = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
 ) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const password = String(req.body?.password || "").trim();
 
     if (!password) {
@@ -120,7 +145,7 @@ export const verifyInvoiceEditPassword = async (
       });
     }
 
-    const settings = await ensureSettings();
+    const settings = await ensureSettings(userId);
 
     if (!settings.invoiceEditPasswordHash) {
       return res.status(400).json({

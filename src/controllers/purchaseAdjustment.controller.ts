@@ -1,5 +1,6 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 type AdjustmentLine = {
   id: number;
@@ -125,8 +126,12 @@ const detectNoteType = (
   return null;
 };
 
+const getUserId = (req: AuthRequest) =>
+  Number(req.user?.userId || req.user?.id || 0);
+
 const generateAdjustmentNoteNo = async (
   db: any,
+  userId: number,
   noteType: "CREDIT" | "DEBIT",
   excludeId?: number,
 ) => {
@@ -135,6 +140,7 @@ const generateAdjustmentNoteNo = async (
   const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
   const end = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0));
   const where: any = {
+    userId,
     noteType,
     createdAt: {
       gte: start,
@@ -210,19 +216,23 @@ const buildStockChangeMap = (
 
 const applyStockDifference = async (
   db: any,
+  userId: number,
   originalLines: AdjustmentLine[],
   revisedLines: AdjustmentLine[],
 ) => {
   const changes = buildStockChangeMap(originalLines, revisedLines);
 
   for (const change of changes) {
-    const item = await db.item.findUnique({
-      where: { itemName: change.itemName },
+    const item = await db.item.findFirst({
+      where: {
+        userId,
+        itemName: change.itemName,
+      },
     });
 
     if (item) {
       await db.item.update({
-        where: { itemName: change.itemName },
+        where: { id: item.id },
         data: {
           currentStock: round2(
             toNumber(item.currentStock) + toNumber(change.stockChange),
@@ -237,6 +247,7 @@ const applyStockDifference = async (
         itemName: change.itemName,
         currentStock: change.stockChange,
         lastPurchaseRate: change.rate,
+        userId,
       },
     });
   }
@@ -261,9 +272,16 @@ const resolveBodyTotals = (
   return { originalTotalAmount, adjustedTotalAmount };
 };
 
-export const getPurchaseAdjustments = async (_req: Request, res: Response) => {
+export const getPurchaseAdjustments = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const data = await prisma.purchaseAdjustment.findMany({
+      where: { userId },
       orderBy: { id: "desc" },
     });
     res.json(data);
@@ -275,8 +293,14 @@ export const getPurchaseAdjustments = async (_req: Request, res: Response) => {
   }
 };
 
-export const createPurchaseAdjustment = async (req: Request, res: Response) => {
+export const createPurchaseAdjustment = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const {
       noteNo,
       originalInvoiceNo,
@@ -348,9 +372,9 @@ export const createPurchaseAdjustment = async (req: Request, res: Response) => {
     const created = await prisma.$transaction(async (tx) => {
       const finalNoteNo =
         String(noteNo || "").trim() ||
-        (await generateAdjustmentNoteNo(tx, noteType));
+        (await generateAdjustmentNoteNo(tx, userId, noteType));
 
-      await applyStockDifference(tx, sourceLines, revisedLines);
+      await applyStockDifference(tx, userId, sourceLines, revisedLines);
 
       return tx.purchaseAdjustment.create({
         data: {
@@ -378,6 +402,7 @@ export const createPurchaseAdjustment = async (req: Request, res: Response) => {
           state: String(state || "").trim() || null,
           pincode: String(pincode || "").trim() || null,
           address: String(address || "").trim() || null,
+          userId,
         },
       });
     });
@@ -391,12 +416,18 @@ export const createPurchaseAdjustment = async (req: Request, res: Response) => {
   }
 };
 
-export const updatePurchaseAdjustment = async (req: Request, res: Response) => {
+export const updatePurchaseAdjustment = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const id = Number(req.params.id);
 
-    const existing = await prisma.purchaseAdjustment.findUnique({
-      where: { id },
+    const existing = await prisma.purchaseAdjustment.findFirst({
+      where: { id, userId },
     });
 
     if (!existing) {
@@ -490,10 +521,10 @@ export const updatePurchaseAdjustment = async (req: Request, res: Response) => {
       const finalNoteNo =
         existing.noteType === noteType
           ? String(noteNo || existing.noteNo || "").trim() || existing.noteNo
-          : await generateAdjustmentNoteNo(tx, noteType, existing.id);
+          : await generateAdjustmentNoteNo(tx, userId, noteType, existing.id);
 
-      await applyStockDifference(tx, previousRevisedLines, previousSourceLines);
-      await applyStockDifference(tx, sourceLines, revisedLines);
+      await applyStockDifference(tx, userId, previousRevisedLines, previousSourceLines);
+      await applyStockDifference(tx, userId, sourceLines, revisedLines);
 
       return tx.purchaseAdjustment.update({
         where: { id },
@@ -537,12 +568,18 @@ export const updatePurchaseAdjustment = async (req: Request, res: Response) => {
   }
 };
 
-export const deletePurchaseAdjustment = async (req: Request, res: Response) => {
+export const deletePurchaseAdjustment = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const id = Number(req.params.id);
 
-    const existing = await prisma.purchaseAdjustment.findUnique({
-      where: { id },
+    const existing = await prisma.purchaseAdjustment.findFirst({
+      where: { id, userId },
     });
 
     if (!existing) {
@@ -559,7 +596,7 @@ export const deletePurchaseAdjustment = async (req: Request, res: Response) => {
     );
 
     await prisma.$transaction(async (tx) => {
-      await applyStockDifference(tx, revisedLines, sourceLines);
+      await applyStockDifference(tx, userId, revisedLines, sourceLines);
       await tx.purchaseAdjustment.delete({
         where: { id },
       });

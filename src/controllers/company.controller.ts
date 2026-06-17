@@ -1,22 +1,37 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
 
-export const getCompany = async (_req: Request, res: Response) => {
+const getUserId = (req: AuthRequest) =>
+  Number(req.user?.userId || req.user?.id || 0);
+
+const getDefaultCompanyData = (userId: number) => ({
+  companyName: "SJQD SOFTWARE",
+  businessType: "Retail",
+  stockMethod: "WEIGHTED_AVG",
+  financialYear: "2026-27",
+  salesPrefix: "SAL",
+  purchasePrefix: "PUR",
+  salesReturnPrefix: "SR",
+  purchaseReturnPrefix: "PR",
+  userId,
+});
+
+export const getCompany = async (req: AuthRequest, res: Response) => {
   try {
-    let company = await prisma.company.findFirst();
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    let company = await prisma.company.findFirst({
+      where: { userId },
+    });
 
     if (!company) {
       company = await prisma.company.create({
-        data: {
-          companyName: "SAMUEL PRAKASH",
-          businessType: "Retail",
-          stockMethod: "WEIGHTED_AVG",
-          financialYear: "2026-27",
-          salesPrefix: "SAL",
-          purchasePrefix: "PUR",
-          salesReturnPrefix: "SR",
-          purchaseReturnPrefix: "PR",
-        },
+        data: getDefaultCompanyData(userId),
       });
     }
 
@@ -27,14 +42,22 @@ export const getCompany = async (_req: Request, res: Response) => {
   }
 };
 
-export const saveCompany = async (req: Request, res: Response) => {
+export const saveCompany = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const body = req.body;
 
-    const existing = await prisma.company.findFirst();
+    const existing = await prisma.company.findFirst({
+      where: { userId },
+    });
 
     const data = {
-      companyName: body.companyName || "SAMUEL PRAKASH",
+      companyName: body.companyName || "SJQD SOFTWARE",
       proprietorName: body.proprietorName || "",
       gstNumber: body.gstNumber || "",
       businessType: body.businessType || "Retail",
@@ -57,6 +80,7 @@ export const saveCompany = async (req: Request, res: Response) => {
       terms:
         body.terms ||
         "Goods once sold will not be taken back. Subject to local jurisdiction.",
+      userId,
     };
 
     const company = existing
@@ -73,9 +97,23 @@ export const saveCompany = async (req: Request, res: Response) => {
   }
 };
 
-export const getInvoiceSettings = async (_req: Request, res: Response) => {
+export const getInvoiceSettings = async (req: AuthRequest, res: Response) => {
   try {
-    const company = await prisma.company.findFirst();
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    let company = await prisma.company.findFirst({
+      where: { userId },
+    });
+
+    if (!company) {
+      company = await prisma.company.create({
+        data: getDefaultCompanyData(userId),
+      });
+    }
 
     res.json({
       salesPrefix: company?.salesPrefix || "SAL",

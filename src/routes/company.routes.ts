@@ -4,11 +4,12 @@ import {
   saveCompany,
   getInvoiceSettings,
 } from "../controllers/company.controller";
+import authMiddleware from "../middleware/auth.middleware";
 
 const router = express.Router();
 
-router.get("/", getCompany);
-router.post("/", saveCompany);
-router.get("/invoice-settings", getInvoiceSettings);
+router.get("/", authMiddleware, getCompany);
+router.post("/", authMiddleware, saveCompany);
+router.get("/invoice-settings", authMiddleware, getInvoiceSettings);
 
 export default router;

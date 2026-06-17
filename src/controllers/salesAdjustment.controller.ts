@@ -1,5 +1,6 @@
-import { Request, Response } from "express";
+import { Response } from "express";
 import prisma from "../config/db";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 type AdjustmentLine = {
   id: number;
@@ -125,8 +126,12 @@ const detectNoteType = (originalTotalAmount: number, adjustedTotalAmount: number
   return null;
 };
 
+const getUserId = (req: AuthRequest) =>
+  Number(req.user?.userId || req.user?.id || 0);
+
 const generateAdjustmentNoteNo = async (
   db: any,
+  userId: number,
   noteType: "CREDIT" | "DEBIT",
   excludeId?: number,
 ) => {
@@ -135,6 +140,7 @@ const generateAdjustmentNoteNo = async (
   const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0));
   const end = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0));
   const where: any = {
+    userId,
     noteType,
     createdAt: {
       gte: start,
@@ -210,19 +216,23 @@ const buildStockChangeMap = (
 
 const applyStockDifference = async (
   db: any,
+  userId: number,
   originalLines: AdjustmentLine[],
   revisedLines: AdjustmentLine[],
 ) => {
   const changes = buildStockChangeMap(originalLines, revisedLines);
 
   for (const change of changes) {
-    const item = await db.item.findUnique({
-      where: { itemName: change.itemName },
+    const item = await db.item.findFirst({
+      where: {
+        userId,
+        itemName: change.itemName,
+      },
     });
 
     if (item) {
       await db.item.update({
-        where: { itemName: change.itemName },
+        where: { id: item.id },
         data: {
           currentStock: round2(
             toNumber(item.currentStock) + toNumber(change.stockChange),
@@ -237,6 +247,7 @@ const applyStockDifference = async (
         itemName: change.itemName,
         currentStock: change.stockChange,
         lastPurchaseRate: change.rate,
+        userId,
       },
     });
   }
@@ -258,9 +269,16 @@ const resolveBodyTotals = (
   return { originalTotalAmount, adjustedTotalAmount };
 };
 
-export const getSalesAdjustments = async (_req: Request, res: Response) => {
+export const getSalesAdjustments = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const data = await prisma.salesAdjustment.findMany({
+      where: { userId },
       orderBy: { id: "desc" },
     });
     res.json(data);
@@ -270,8 +288,14 @@ export const getSalesAdjustments = async (_req: Request, res: Response) => {
   }
 };
 
-export const createSalesAdjustment = async (req: Request, res: Response) => {
+export const createSalesAdjustment = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const {
       noteNo,
       originalInvoiceNo,
@@ -340,9 +364,9 @@ export const createSalesAdjustment = async (req: Request, res: Response) => {
     const created = await prisma.$transaction(async (tx) => {
       const finalNoteNo =
         String(noteNo || "").trim() ||
-        (await generateAdjustmentNoteNo(tx, noteType));
+        (await generateAdjustmentNoteNo(tx, userId, noteType));
 
-      await applyStockDifference(tx, sourceLines, revisedLines);
+      await applyStockDifference(tx, userId, sourceLines, revisedLines);
 
       return tx.salesAdjustment.create({
         data: {
@@ -371,6 +395,7 @@ export const createSalesAdjustment = async (req: Request, res: Response) => {
           state: String(state || "").trim() || null,
           pincode: String(pincode || "").trim() || null,
           address: String(address || "").trim() || null,
+          userId,
         },
       });
     });
@@ -382,12 +407,18 @@ export const createSalesAdjustment = async (req: Request, res: Response) => {
   }
 };
 
-export const updateSalesAdjustment = async (req: Request, res: Response) => {
+export const updateSalesAdjustment = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const id = Number(req.params.id);
 
-    const existing = await prisma.salesAdjustment.findUnique({
-      where: { id },
+    const existing = await prisma.salesAdjustment.findFirst({
+      where: { id, userId },
     });
 
     if (!existing) {
@@ -477,10 +508,10 @@ export const updateSalesAdjustment = async (req: Request, res: Response) => {
       const finalNoteNo =
         existing.noteType === noteType
           ? String(noteNo || existing.noteNo || "").trim() || existing.noteNo
-          : await generateAdjustmentNoteNo(tx, noteType, existing.id);
+          : await generateAdjustmentNoteNo(tx, userId, noteType, existing.id);
 
-      await applyStockDifference(tx, previousRevisedLines, previousSourceLines);
-      await applyStockDifference(tx, sourceLines, revisedLines);
+      await applyStockDifference(tx, userId, previousRevisedLines, previousSourceLines);
+      await applyStockDifference(tx, userId, sourceLines, revisedLines);
 
       return tx.salesAdjustment.update({
         where: { id },
@@ -521,12 +552,18 @@ export const updateSalesAdjustment = async (req: Request, res: Response) => {
   }
 };
 
-export const deleteSalesAdjustment = async (req: Request, res: Response) => {
+export const deleteSalesAdjustment = async (req: AuthRequest, res: Response) => {
   try {
+    const userId = getUserId(req);
+
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
     const id = Number(req.params.id);
 
-    const existing = await prisma.salesAdjustment.findUnique({
-      where: { id },
+    const existing = await prisma.salesAdjustment.findFirst({
+      where: { id, userId },
     });
 
     if (!existing) {
@@ -541,7 +578,7 @@ export const deleteSalesAdjustment = async (req: Request, res: Response) => {
     );
 
     await prisma.$transaction(async (tx) => {
-      await applyStockDifference(tx, revisedLines, sourceLines);
+      await applyStockDifference(tx, userId, revisedLines, sourceLines);
       await tx.salesAdjustment.delete({
         where: { id },
       });

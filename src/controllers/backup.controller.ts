@@ -3,20 +3,22 @@ import { Response } from "express";
 import prisma from "../config/db";
 import { AuthRequest } from "../middleware/auth.middleware";
 
+const db: any = prisma;
+
 const getUserId = (req: AuthRequest) =>
   Number(req.user?.userId || req.user?.id || 0);
 
 const clearUserOwnedData = async (userId: number) => {
-  await prisma.purchaseAdjustment.deleteMany({ where: { userId } });
-  await prisma.salesAdjustment.deleteMany({ where: { userId } });
-  await prisma.purchaseReturn.deleteMany({ where: { userId } });
-  await prisma.salesReturn.deleteMany({ where: { userId } });
-  await prisma.sale.deleteMany({ where: { userId } });
-  await prisma.purchase.deleteMany({ where: { userId } });
-  await prisma.customer.deleteMany({ where: { userId } });
-  await prisma.item.deleteMany({ where: { userId } });
-  await prisma.appSetting.deleteMany({ where: { userId } });
-  await prisma.company.deleteMany({ where: { userId } });
+  await db.purchaseAdjustment.deleteMany({ where: { userId } });
+  await db.salesAdjustment.deleteMany({ where: { userId } });
+  await db.purchaseReturn.deleteMany({ where: { userId } });
+  await db.salesReturn.deleteMany({ where: { userId } });
+  await db.sale.deleteMany({ where: { userId } });
+  await db.purchase.deleteMany({ where: { userId } });
+  await db.customer.deleteMany({ where: { userId } });
+  await db.item.deleteMany({ where: { userId } });
+  await db.appSetting.deleteMany({ where: { userId } });
+  await db.company.deleteMany({ where: { userId } });
 };
 
 export const exportBackup = async (req: AuthRequest, res: Response) => {
@@ -29,7 +31,7 @@ export const exportBackup = async (req: AuthRequest, res: Response) => {
 
     const data = {
       exportedAt: new Date().toISOString(),
-      account: await prisma.user.findUnique({
+      account: await db.user.findUnique({
         where: { id: userId },
         select: {
           id: true,
@@ -39,16 +41,16 @@ export const exportBackup = async (req: AuthRequest, res: Response) => {
           role: true,
         },
       }),
-      companies: await prisma.company.findMany({ where: { userId } }),
-      settings: await prisma.appSetting.findMany({ where: { userId } }),
-      items: await prisma.item.findMany({ where: { userId } }),
-      customers: await prisma.customer.findMany({ where: { userId } }),
-      sales: await prisma.sale.findMany({ where: { userId } }),
-      purchases: await prisma.purchase.findMany({ where: { userId } }),
-      salesReturns: await prisma.salesReturn.findMany({ where: { userId } }),
-      purchaseReturns: await prisma.purchaseReturn.findMany({ where: { userId } }),
-      salesAdjustments: await prisma.salesAdjustment.findMany({ where: { userId } }),
-      purchaseAdjustments: await prisma.purchaseAdjustment.findMany({ where: { userId } }),
+      companies: await db.company.findMany({ where: { userId } }),
+      settings: await db.appSetting.findMany({ where: { userId } }),
+      items: await db.item.findMany({ where: { userId } }),
+      customers: await db.customer.findMany({ where: { userId } }),
+      sales: await db.sale.findMany({ where: { userId } }),
+      purchases: await db.purchase.findMany({ where: { userId } }),
+      salesReturns: await db.salesReturn.findMany({ where: { userId } }),
+      purchaseReturns: await db.purchaseReturn.findMany({ where: { userId } }),
+      salesAdjustments: await db.salesAdjustment.findMany({ where: { userId } }),
+      purchaseAdjustments: await db.purchaseAdjustment.findMany({ where: { userId } }),
     };
 
     return res.json(data);
@@ -76,7 +78,7 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
 
     if (Array.isArray(data.companies)) {
       for (const company of data.companies) {
-        await prisma.company.create({
+        await db.company.create({
           data: {
             companyName: company.companyName || "SJQD SOFTWARE",
             proprietorName: company.proprietorName || null,
@@ -105,7 +107,7 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
 
     if (Array.isArray(data.settings)) {
       for (const setting of data.settings) {
-        await prisma.appSetting.create({
+        await db.appSetting.create({
           data: {
             stockMethod: setting.stockMethod || "WEIGHTED_AVG",
             allowNegative: Boolean(setting.allowNegative),
@@ -120,20 +122,20 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const customer of data.customers || []) {
-      await prisma.customer.create({
+      await db.customer.create({
         data: {
           partyName: customer.partyName || "",
-          gstNo: customer.gstNo || null,
+          gstNo: customer.gstNo || "",
           userId,
         },
       });
     }
 
     for (const item of data.items || []) {
-      await prisma.item.create({
+      await db.item.create({
         data: {
           barcode: item.barcode || null,
-          itemName: item.itemName,
+          itemName: item.itemName || "",
           gstRate: Number(item.gstRate || 0),
           salesRate: Number(item.salesRate || 0),
           purchaseRate: Number(item.purchaseRate || 0),
@@ -145,11 +147,11 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const purchase of data.purchases || []) {
-      await prisma.purchase.create({
+      await db.purchase.create({
         data: {
-          invoiceNo: purchase.invoiceNo,
-          supplierName: purchase.supplierName,
-          itemName: purchase.itemName,
+          invoiceNo: purchase.invoiceNo || "",
+          supplierName: purchase.supplierName || "",
+          itemName: purchase.itemName || "",
           quantity: Number(purchase.quantity || 0),
           rate: Number(purchase.rate || 0),
           gstNo: purchase.gstNo || null,
@@ -165,11 +167,11 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const sale of data.sales || []) {
-      await prisma.sale.create({
+      await db.sale.create({
         data: {
-          invoiceNo: sale.invoiceNo,
-          partyName: sale.partyName,
-          itemName: sale.itemName,
+          invoiceNo: sale.invoiceNo || "",
+          partyName: sale.partyName || "",
+          itemName: sale.itemName || "",
           quantity: Number(sale.quantity || 0),
           rate: Number(sale.rate || 0),
           gstNo: sale.gstNo || null,
@@ -187,12 +189,12 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const salesReturn of data.salesReturns || []) {
-      await prisma.salesReturn.create({
+      await db.salesReturn.create({
         data: {
-          returnNo: salesReturn.returnNo,
-          originalInvoiceNo: salesReturn.originalInvoiceNo,
-          partyName: salesReturn.partyName,
-          itemName: salesReturn.itemName,
+          returnNo: salesReturn.returnNo || "",
+          originalInvoiceNo: salesReturn.originalInvoiceNo || "-",
+          partyName: salesReturn.partyName || "",
+          itemName: salesReturn.itemName || "",
           quantity: Number(salesReturn.quantity || 0),
           rate: Number(salesReturn.rate || 0),
           gstNo: salesReturn.gstNo || null,
@@ -208,12 +210,12 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const purchaseReturn of data.purchaseReturns || []) {
-      await prisma.purchaseReturn.create({
+      await db.purchaseReturn.create({
         data: {
-          returnNo: purchaseReturn.returnNo,
-          originalInvoiceNo: purchaseReturn.originalInvoiceNo,
-          supplierName: purchaseReturn.supplierName,
-          itemName: purchaseReturn.itemName,
+          returnNo: purchaseReturn.returnNo || "",
+          originalInvoiceNo: purchaseReturn.originalInvoiceNo || "-",
+          supplierName: purchaseReturn.supplierName || "",
+          itemName: purchaseReturn.itemName || "",
           quantity: Number(purchaseReturn.quantity || 0),
           rate: Number(purchaseReturn.rate || 0),
           gstNo: purchaseReturn.gstNo || null,
@@ -229,9 +231,9 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const salesAdjustment of data.salesAdjustments || []) {
-      await prisma.salesAdjustment.create({
+      await db.salesAdjustment.create({
         data: {
-          noteNo: salesAdjustment.noteNo,
+          noteNo: salesAdjustment.noteNo || "",
           noteType: salesAdjustment.noteType || "ADJUSTMENT",
           originalInvoiceNo: salesAdjustment.originalInvoiceNo || "",
           partyName: salesAdjustment.partyName || "",
@@ -261,9 +263,9 @@ export const restoreBackup = async (req: AuthRequest, res: Response) => {
     }
 
     for (const purchaseAdjustment of data.purchaseAdjustments || []) {
-      await prisma.purchaseAdjustment.create({
+      await db.purchaseAdjustment.create({
         data: {
-          noteNo: purchaseAdjustment.noteNo,
+          noteNo: purchaseAdjustment.noteNo || "",
           noteType: purchaseAdjustment.noteType || "ADJUSTMENT",
           originalInvoiceNo: purchaseAdjustment.originalInvoiceNo || "",
           supplierName: purchaseAdjustment.supplierName || "",
@@ -310,10 +312,12 @@ export const clearAccountData = async (req: AuthRequest, res: Response) => {
     const password = String(req.body?.password || "").trim();
 
     if (!password) {
-      return res.status(400).json({ message: "Current account password is required" });
+      return res.status(400).json({
+        message: "Current account password is required",
+      });
     }
 
-    const account = await prisma.user.findUnique({
+    const account = await db.user.findUnique({
       where: { id: userId },
       select: {
         id: true,
@@ -328,7 +332,9 @@ export const clearAccountData = async (req: AuthRequest, res: Response) => {
     const validPassword = await bcrypt.compare(password, account.password);
 
     if (!validPassword) {
-      return res.status(401).json({ message: "Current account password is incorrect" });
+      return res.status(401).json({
+        message: "Current account password is incorrect",
+      });
     }
 
     await clearUserOwnedData(userId);

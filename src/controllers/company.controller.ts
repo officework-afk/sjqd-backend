@@ -2,18 +2,30 @@ import { Response } from "express";
 import prisma from "../config/db";
 import { AuthRequest } from "../middleware/auth.middleware";
 
-const getUserId = (req: AuthRequest) =>
-  Number(req.user?.userId || req.user?.id || 0);
+const getUserId = (req: AuthRequest): number => {
+  return Number(req.user?.userId || req.user?.id || 0);
+};
 
 const getDefaultCompanyData = (userId: number) => ({
   companyName: "SJQD SOFTWARE",
+  proprietorName: "",
+  gstNumber: "",
   businessType: "Retail",
+  phone: "",
+  email: "",
+  address: "",
+  logo: "",
   stockMethod: "WEIGHTED_AVG",
   financialYear: "2026-27",
   salesPrefix: "SAL",
   purchasePrefix: "PUR",
   salesReturnPrefix: "SR",
   purchaseReturnPrefix: "PR",
+  bankName: "",
+  accountNumber: "",
+  ifscCode: "",
+  branchName: "",
+  terms: "Goods once sold will not be taken back. Subject to local jurisdiction.",
   userId,
 });
 
@@ -35,10 +47,10 @@ export const getCompany = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.json(company);
+    return res.status(200).json(company);
   } catch (error) {
     console.error("GET COMPANY ERROR:", error);
-    res.status(500).json({ message: "Failed to fetch company" });
+    return res.status(500).json({ message: "Failed to fetch company" });
   }
 };
 
@@ -50,7 +62,7 @@ export const saveCompany = async (req: AuthRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const body = req.body;
+    const body = req.body || {};
 
     const existing = await prisma.company.findFirst({
       where: { userId },
@@ -67,12 +79,10 @@ export const saveCompany = async (req: AuthRequest, res: Response) => {
       logo: body.logo || "",
       stockMethod: body.stockMethod || "WEIGHTED_AVG",
       financialYear: body.financialYear || "2026-27",
-
       salesPrefix: body.salesPrefix || "SAL",
       purchasePrefix: body.purchasePrefix || "PUR",
       salesReturnPrefix: body.salesReturnPrefix || "SR",
       purchaseReturnPrefix: body.purchaseReturnPrefix || "PR",
-
       bankName: body.bankName || "",
       accountNumber: body.accountNumber || "",
       ifscCode: body.ifscCode || "",
@@ -88,16 +98,21 @@ export const saveCompany = async (req: AuthRequest, res: Response) => {
           where: { id: existing.id },
           data,
         })
-      : await prisma.company.create({ data });
+      : await prisma.company.create({
+          data,
+        });
 
-    res.json(company);
+    return res.status(200).json(company);
   } catch (error) {
     console.error("SAVE COMPANY ERROR:", error);
-    res.status(500).json({ message: "Failed to save company" });
+    return res.status(500).json({ message: "Failed to save company" });
   }
 };
 
-export const getInvoiceSettings = async (req: AuthRequest, res: Response) => {
+export const getInvoiceSettings = async (
+  req: AuthRequest,
+  res: Response
+) => {
   try {
     const userId = getUserId(req);
 
@@ -115,15 +130,17 @@ export const getInvoiceSettings = async (req: AuthRequest, res: Response) => {
       });
     }
 
-    res.json({
-      salesPrefix: company?.salesPrefix || "SAL",
-      purchasePrefix: company?.purchasePrefix || "PUR",
-      salesReturnPrefix: company?.salesReturnPrefix || "SR",
-      purchaseReturnPrefix: company?.purchaseReturnPrefix || "PR",
-      financialYear: company?.financialYear || "2026-27",
+    return res.status(200).json({
+      salesPrefix: company.salesPrefix || "SAL",
+      purchasePrefix: company.purchasePrefix || "PUR",
+      salesReturnPrefix: company.salesReturnPrefix || "SR",
+      purchaseReturnPrefix: company.purchaseReturnPrefix || "PR",
+      financialYear: company.financialYear || "2026-27",
     });
   } catch (error) {
     console.error("GET INVOICE SETTINGS ERROR:", error);
-    res.status(500).json({ message: "Failed to fetch invoice settings" });
+    return res.status(500).json({
+      message: "Failed to fetch invoice settings",
+    });
   }
 };

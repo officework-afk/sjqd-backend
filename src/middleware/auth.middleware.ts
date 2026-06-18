@@ -11,7 +11,7 @@ export interface AuthRequest extends Request {
   };
 }
 
-export const authMiddleware = (
+const authMiddleware = (
   req: AuthRequest,
   res: Response,
   next: NextFunction
@@ -50,7 +50,7 @@ export const authMiddleware = (
       phone: decoded.phone || null,
     };
 
-    next();
+    return next();
   } catch (error) {
     return res.status(401).json({
       success: false,

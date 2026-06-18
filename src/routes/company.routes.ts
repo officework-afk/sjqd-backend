@@ -1,10 +1,10 @@
 import express from "express";
+import authMiddleware from "../middleware/auth.middleware";
 import {
   getCompany,
   saveCompany,
   getInvoiceSettings,
 } from "../controllers/company.controller";
-import authMiddleware from "../middleware/auth.middleware";
 
 const router = express.Router();
 

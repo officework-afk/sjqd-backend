@@ -3,15 +3,15 @@
   "version": "1.0.0",
   "description": "",
   "main": "dist/index.js",
-  "scripts": {
-    "dev": "ts-node src/index.ts",
-    "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
-    "start:prod": "prisma db push && node dist/index.js",
-    "prisma:generate": "prisma generate",
-    "prisma:push": "prisma db push",
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+"scripts": {
+  "dev": "ts-node src/index.ts",
+  "build": "prisma generate && tsc -p tsconfig.json",
+  "start": "node dist/index.js",
+  "start:prod": "prisma db push && node dist/index.js",
+  "prisma:generate": "prisma generate",
+  "prisma:push": "prisma db push",
+  "test": "echo \"Error: no test specified\" && exit 1"
+},
   "keywords": [],
   "author": "",
   "license": "ISC",
